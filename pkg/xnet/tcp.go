@@ -13,7 +13,7 @@ var tcpPool = newBufferPool(constants.TCPBufferSize)
 
 // This does the actual data transfer.
 // The broker only closes the Read side.
-func tcpBroker(dst, src net.Conn, srcClosed chan struct{}) {
+func tcpBroker(dst, src net.Conn, srcClosed chan struct{}, marker string) {
 	defer src.Close()
 	bufPtr := tcpPool.Get().(*[]byte)
 	defer tcpPool.Put(bufPtr)
@@ -23,7 +23,10 @@ func tcpBroker(dst, src net.Conn, srcClosed chan struct{}) {
 	// simple, and we drop the ReaderFrom or WriterTo checks for
 	// net.Conn->net.Conn transfers, which aren't needed). This would also let
 	// us adjust buffer size.
-	_, _ = io.CopyBuffer(dst, src, buf)
+	if n, err := io.CopyBuffer(dst, src, buf); err != nil {
+		klog.V(5).InfoS("Failed to copy connection",
+			"party", marker, "err", err, "copied", n)
+	}
 
 	close(srcClosed)
 }
@@ -36,8 +39,8 @@ func ProxyTCP(reqID string, downConn, upConn *net.TCPConn) {
 	upClosed := make(chan struct{})
 	downClosed := make(chan struct{})
 
-	go tcpBroker(upConn, downConn, downClosed)
-	go tcpBroker(downConn, upConn, upClosed)
+	go tcpBroker(upConn, downConn, downClosed, "client")
+	go tcpBroker(downConn, upConn, upClosed, "server")
 
 	// wait for one half of the proxy to exit, then trigger a shutdown of the
 	// other half by calling CloseRead(). This will break the read loop in the
@@ -46,7 +49,7 @@ func ProxyTCP(reqID string, downConn, upConn *net.TCPConn) {
 	var waitFor chan struct{}
 	select {
 	case <-downClosed:
-		klog.V(4).InfoS("Client close connection", constants.LogFieldRequestID, reqID)
+		klog.V(4).InfoS("Client closed connection", constants.LogFieldRequestID, reqID)
 		// the client closed first and any more packets from the server aren't
 		// useful, so we can optionally SetLinger(0) here to recycle the port
 		// faster.
@@ -54,7 +57,7 @@ func ProxyTCP(reqID string, downConn, upConn *net.TCPConn) {
 		_ = upConn.CloseRead()
 		waitFor = upClosed
 	case <-upClosed:
-		klog.V(4).InfoS("Server close connection", constants.LogFieldRequestID, reqID)
+		klog.V(4).InfoS("Server closed connection", constants.LogFieldRequestID, reqID)
 		_ = downConn.CloseRead()
 		waitFor = downClosed
 	}

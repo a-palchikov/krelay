@@ -1,13 +1,16 @@
-IMAGE_TAG ?= latest
+IMAGE_TAG ?= dev
 
 NAME := kubectl-relay
 GOBUILD = CGO_ENABLED=0 go build -trimpath
 
-.PHONY: server-image push-server-image
+.PHONY: server-image
 server-image:
-	docker build -t ghcr.io/knight42/krelay-server:$(IMAGE_TAG) -f manifests/Dockerfile-server .
-push-server-image: server-image
-	docker push ghcr.io/knight42/krelay-server:$(IMAGE_TAG)
+	buildctl build \
+		--frontend=dockerfile.v0 \
+		--local context=. \
+		--local dockerfile=. \
+		--opt filename=manifests/Dockerfile-server \
+		--output type=image,name=localhost:5001/knight42/krelay-server:$(IMAGE_TAG),push=true
 
 .PHONY: krelay
 krelay:

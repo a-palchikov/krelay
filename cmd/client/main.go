@@ -27,6 +27,7 @@ import (
 	"github.com/knight42/krelay/pkg/constants"
 	"github.com/knight42/krelay/pkg/ports"
 	"github.com/knight42/krelay/pkg/remoteaddr"
+	"github.com/knight42/krelay/pkg/utils"
 	"github.com/knight42/krelay/pkg/xnet"
 )
 
@@ -188,7 +189,7 @@ func (o *Options) Run(ctx context.Context, args []string) error {
 }
 
 func main() {
-	klog.InitFlags(nil)
+	utils.SetupKlog("10")
 	cf := genericclioptions.NewConfigFlags(true)
 	o := Options{
 		getter: cf,

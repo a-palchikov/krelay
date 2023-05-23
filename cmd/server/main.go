@@ -15,6 +15,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/knight42/krelay/pkg/constants"
+	"github.com/knight42/krelay/pkg/utils"
 	"github.com/knight42/krelay/pkg/xnet"
 )
 
@@ -124,7 +125,7 @@ func handleConn(ctx context.Context, c *net.TCPConn, dialer *net.Dialer) {
 }
 
 func main() {
-	klog.InitFlags(nil)
+	utils.SetupKlog("10")
 	o := options{}
 	c := cobra.Command{
 		Use: constants.ServerName,

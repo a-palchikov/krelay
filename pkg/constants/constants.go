@@ -24,3 +24,5 @@ const (
 	ProtocolTCP = "tcp"
 	ProtocolUDP = "udp"
 )
+
+const ServerImage = "localhost:5001/knight42/krelay-server:dev"
