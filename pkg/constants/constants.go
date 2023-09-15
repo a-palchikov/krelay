@@ -25,4 +25,4 @@ const (
 	ProtocolUDP = "udp"
 )
 
-const ServerImage = "localhost:5001/knight42/krelay-server:dev"
+const ServerImage = "localhost:5001/knight42/krelay-server:dev@sha256:81b4f7acc449f90ac66d874e2b629fd5f970780da8af023563c25619407ae1b5"

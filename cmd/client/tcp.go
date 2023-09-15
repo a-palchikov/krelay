@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/hex"
 	"io"
 	"net"
+	"os"
 
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/klog/v2"
@@ -58,8 +60,9 @@ func handleTCPConn(clientConn net.Conn, serverConn httpstream.Connection, dstAdd
 	remoteDone := make(chan struct{})
 
 	go func() {
+		d := hex.Dumper(os.Stdout)
 		// Copy from the remote side to the local port.
-		if _, err := io.Copy(clientConn, dataStream); err != nil && !xnet.IsClosedConnectionError(err) {
+		if _, err := io.Copy(io.MultiWriter(clientConn, d), dataStream); err != nil && !xnet.IsClosedConnectionError(err) {
 			klog.ErrorS(err, "Fail to copy from remote stream to local connection", kvs...)
 		}
 
@@ -71,8 +74,9 @@ func handleTCPConn(clientConn net.Conn, serverConn httpstream.Connection, dstAdd
 		// inform server we're not sending any more data after copy unblocks
 		defer dataStream.Close()
 
+		d := hex.Dumper(os.Stdout)
 		// Copy from the local port to the remote side.
-		if _, err := io.Copy(dataStream, clientConn); err != nil && !xnet.IsClosedConnectionError(err) {
+		if _, err := io.Copy(io.MultiWriter(dataStream, d), clientConn); err != nil && !xnet.IsClosedConnectionError(err) {
 			klog.ErrorS(err, "Fail to copy from local connection to remote stream", kvs...)
 			// break out of the select below without waiting for the other copy to finish
 			close(localError)

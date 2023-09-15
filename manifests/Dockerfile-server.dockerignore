@@ -1,0 +1,6 @@
+**
+
+!go.*
+!cmd/server/
+!pkg
+!vendor

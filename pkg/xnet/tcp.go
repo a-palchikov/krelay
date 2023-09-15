@@ -1,8 +1,10 @@
 package xnet
 
 import (
+	"encoding/hex"
 	"io"
 	"net"
+	"os"
 
 	"k8s.io/klog/v2"
 
@@ -18,14 +20,17 @@ func tcpBroker(dst, src net.Conn, srcClosed chan struct{}, marker string) {
 	bufPtr := tcpPool.Get().(*[]byte)
 	defer tcpPool.Put(bufPtr)
 
+	d := hex.Dumper(os.Stdout)
 	buf := *bufPtr
 	// We can handle errors in a finer-grained manner by inlining io.Copy (it's
 	// simple, and we drop the ReaderFrom or WriterTo checks for
 	// net.Conn->net.Conn transfers, which aren't needed). This would also let
 	// us adjust buffer size.
-	if n, err := io.CopyBuffer(dst, src, buf); err != nil {
-		klog.V(5).InfoS("Failed to copy connection",
-			"party", marker, "err", err, "copied", n)
+	if n, err := io.CopyBuffer(io.MultiWriter(dst, d), src, buf); err != nil {
+		klog.V(5).ErrorS(err, "Failed to copy connection",
+			"party", marker, "copied", n)
+	} else {
+		klog.V(5).InfoS("Connection done", "party", marker, "copied", n)
 	}
 
 	close(srcClosed)
@@ -53,12 +58,18 @@ func ProxyTCP(reqID string, downConn, upConn *net.TCPConn) {
 		// the client closed first and any more packets from the server aren't
 		// useful, so we can optionally SetLinger(0) here to recycle the port
 		// faster.
-		_ = upConn.SetLinger(0)
-		_ = upConn.CloseRead()
+		if err := upConn.SetLinger(0); err != nil {
+			klog.V(4).InfoS("[client] SetLinger failed", "err", err)
+		}
+		if err := upConn.CloseRead(); err != nil {
+			klog.V(4).InfoS("[client] CloseRead failed", "err", err)
+		}
 		waitFor = upClosed
 	case <-upClosed:
 		klog.V(4).InfoS("Server closed connection", constants.LogFieldRequestID, reqID)
-		_ = downConn.CloseRead()
+		if err := downConn.CloseRead(); err != nil {
+			klog.V(4).InfoS("[server] CloseRead failed", "err", err)
+		}
 		waitFor = downClosed
 	}
 
@@ -67,4 +78,12 @@ func ProxyTCP(reqID string, downConn, upConn *net.TCPConn) {
 	// connection and ensure all copies terminate correctly; we can trigger
 	// stats on entry and deferred exit of this function.
 	<-waitFor
+}
+
+func (r *hexWriter) Write(p []byte) (n int, err error) {
+	return r.w.Write(p)
+}
+
+type hexWriter struct {
+	w io.Writer
 }

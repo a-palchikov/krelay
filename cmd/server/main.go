@@ -19,6 +19,21 @@ import (
 	"github.com/knight42/krelay/pkg/xnet"
 )
 
+func main() {
+	utils.SetupKlog("10")
+	var o options
+	c := cobra.Command{
+		Use: constants.ServerName,
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
+			return o.run(context.Background())
+		},
+		SilenceUsage: true,
+	}
+	c.Flags().AddGoFlagSet(flag.CommandLine)
+	c.Flags().DurationVar(&o.connectTimeout, "connect-timeout", time.Second*10, "Timeout for connecting to upstream")
+	_ = c.Execute()
+}
+
 type options struct {
 	connectTimeout time.Duration
 }
